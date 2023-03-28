@@ -1,1 +1,2 @@
 BOT_TOKEN = '6050957057:AAFzSmSZMxhFtSW10K5cXK0XC8w2vc4wEGo'
+DATABASE_FILE = 'database/database.db'

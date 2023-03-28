@@ -3,7 +3,7 @@ import sqlite3
 
 class User_database:
     def __init__(self, database_file):
-        self.connection = sqlite3.connect(database_file)
+        self.connection = sqlite3.connect(database_file, check_same_thread=False)
         self.cursor = self.connection.cursor()
 
     def add_user(self, id_, user_id, datetime, status):
@@ -18,6 +18,10 @@ class User_database:
     def upd_user_status(self, user_id, status):
         with self.connection:
             return self.cursor.execute("""UPDATE `users` SET `status` = ? WHERE `user_id` = ?""", (status, user_id,))
+
+    def get_all_users(self):
+        with self.connection:
+            return self.cursor.execute("""SELECT user_id FROM users""").fetchall()
 
     def close(self):
         self.connection.close()

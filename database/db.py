@@ -5,6 +5,16 @@ class User_database:
     def __init__(self, database_file):
         self.connection = sqlite3.connect(database_file, check_same_thread=False)
         self.cursor = self.connection.cursor()
+        self.cursor.execute("""CREATE TABLE IF NOT EXISTS users (
+        id       INTEGER PRIMARY KEY AUTOINCREMENT
+                         UNIQUE
+                         NOT NULL,
+        user_id  INTEGER UNIQUE
+                         NOT NULL,
+        datetime INTEGER,
+        status   INTEGER NOT NULL
+                         DEFAULT (0));""")
+        self.connection.commit()
 
     def add_user(self, user_id, datetime, status):
         with self.connection:
@@ -37,6 +47,12 @@ class Hidden_continuation_database:
     def __init__(self, database_file):
         self.connection = sqlite3.connect(database_file, check_same_thread=False)
         self.cursor = self.connection.cursor()
+        self.cursor.execute("""CREATE TABLE IF NOT EXISTS hidden_continuation (
+        callback  INTEGER PRIMARY KEY AUTOINCREMENT,
+        sub       TEXT,
+        no_sub    TEXT,
+        condition TEXT    DEFAULT None);""")
+        self.connection.commit()
 
     def add_button(self, sub_text, no_sub_text, condition):
         with self.connection:

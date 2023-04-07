@@ -34,6 +34,11 @@ class User_database:
             result = self.cursor.execute("""SELECT `user_id` FROM `users` WHERE `status` = ?""", (status,)).fetchall()
             return result
 
+    def get_all(self):
+        with self.connection:
+            result = self.cursor.execute("""SELECT * FROM `users`""").fetchall()
+            return result
+
     def check_user(self, user_id):
         with self.connection:
             result = self.cursor.execute("""SELECT * FROM `users` WHERE `user_id` = ?""", (user_id,)).fetchall()

@@ -1,3 +1,4 @@
+import json
 import sqlite3
 import time
 import validators
@@ -155,9 +156,45 @@ def sendall(message, mail_text, btn_text, btn_link):
         bot.send_message(message.chat.id, 'Кажется, что-то пошло не так...', reply_markup=removing_buttons)
 
 
-# @bot.message.hamdler()
-# def leave(message):
-#     print(message)
+@bot.message_handler(commands=['payforsub'])
+def pay(message):
+    with open('purchase_info.json', encoding='utf-8') as file:
+        info = json.load(file)
+        if 'test' in message.text:
+            payment_token = info["TEST_PAYMENT_TOKEN"]
+        else:
+            payment_token = info["PAYMENT_TOKEN"]
+        sub_info = info["subscription_info"]
+        title = sub_info["title"]
+        description = sub_info["description"]
+        purchase_label = sub_info["purchase_label"]
+        start_p = sub_info["start_p"]
+        invoice_p = sub_info["invoice_p"]
+        sub_price = sub_info["price"]
+
+    price = types.LabeledPrice(label=purchase_label, amount=sub_price * 100)
+    bot.send_invoice(message.chat.id,
+                           title=title,
+                           description=description,
+                           provider_token=payment_token,
+                           currency="rub",
+                           prices=[price],
+                           start_parameter=start_p,
+                           invoice_payload=invoice_p)
+
+
+@bot.pre_checkout_query_handler(func=lambda query: True)
+def checkout(pre_checkout_query):
+    bot.answer_pre_checkout_query(pre_checkout_query.id, ok=True,
+                                  error_message="Возникла непредвиденная ошибка. Попробуйте позже")
+
+
+@bot.message_handler(content_types=['successful_payment'])
+def successful_payment(message):
+    bot.send_message(message.chat.id, f"Платёж прошел успешно! "
+                                      f"Сумма оплаты составила {message.successful_payment.total_amount / 100}"
+                                      f" {message.successful_payment.currency}")
+
 
 bot.add_custom_filter(telebot.custom_filters.StateFilter(bot))
 

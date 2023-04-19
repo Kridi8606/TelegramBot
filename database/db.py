@@ -23,7 +23,7 @@ class User_database:
     def check_user_status(self, user_id):
         with self.connection:
             result = self.cursor.execute("""SELECT `status` FROM `users` WHERE `user_id` = ?""", (user_id,)).fetchone()
-            return result
+            return result[0]
 
     def upd_user_status(self, user_id, status):
         with self.connection:
@@ -79,3 +79,55 @@ class Hidden_continuation_database:
         with self.connection:
             result = self.cursor.execute("""SELECT * FROM `hidden_continuation` WHERE `callback` = ?""", (callback,)).fetchall()
             return bool(len(result))
+
+    def close(self):
+        self.connection.close()
+
+
+class Banned_users:
+    def __init__(self, database_file):
+        self.connection = sqlite3.connect(database_file, check_same_thread=False)
+        self.cursor = self.connection.cursor()
+        self.cursor.execute("""CREATE TABLE IF NOT EXISTS hidden_continuation (
+        id       INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id  INTEGER UNIQUE,
+        nickname STRING  UNIQUE,
+        datetime INTEGER DEFAULT (0),
+        reason   TEXT);""")
+        self.connection.commit()
+
+    def add_user(self, user_id, nickname, datetime, reason):
+        with self.connection:
+            self.cursor.execute("""INSERT INTO `bans` (`user_id`, `nickname`, `datetime`, `reason`) VALUES (?, ?, ?, ?)""", (user_id, nickname, datetime, reason))
+
+    def delete_user(self, user_id):
+        with self.connection:
+            self.cursor.execute("""DELETE FROM `bans` WHERE `user_id` = ?""", (user_id,))
+            self.connection.commit()
+
+    def upd_user_time(self, user_id, datetime):
+        with self.connection:
+            return self.cursor.execute("""UPDATE `bans` SET `datetime` = ? WHERE `user_id` = ?""", (datetime, user_id,))
+
+    def check_user(self, user_id):
+        with self.connection:
+            result = self.cursor.execute("""SELECT * FROM `bans` WHERE `user_id` = ?""", (user_id,)).fetchall()
+            return bool(len(result))
+
+    def get_users(self):
+        with self.connection:
+            result = self.cursor.execute("""SELECT `nickname`, `user_id` FROM `bans`""").fetchall()
+            return result
+
+    def get_all_users(self):
+        with self.connection:
+            result = self.cursor.execute("""SELECT * FROM `bans`""").fetchall()
+            return result
+
+    def get_user_info(self, user_id):
+        with self.connection:
+            result = self.cursor.execute("""SELECT `datetime`, `reason` FROM `bans` WHERE `user_id` = ?""", (user_id,)).fetchone()
+            return result
+
+    def close(self):
+        self.connection.close()

@@ -1,0 +1,10 @@
+{"PAYMENT_TOKEN": "", "TEST_PAYMENT_TOKEN": "",
+  "subscription_info": {
+    "title":  "Подписка на бота",
+    "description": "Оформите подписку",
+    "purchase_label": "Подписка",
+    "price": 50,
+    "start_p": "test-payment",
+    "invoice_p": "bot-subscription"
+  }
+}

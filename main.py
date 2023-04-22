@@ -345,14 +345,18 @@ def pay(message):
         sub_price = sub_info["price"]
 
     price = types.LabeledPrice(label=purchase_label, amount=sub_price * 100)
-    bot.send_invoice(message.chat.id,
-                     title=title,
-                     description=description,
-                     provider_token=payment_token,
-                     currency="rub",
-                     prices=[price],
-                     start_parameter=start_p,
-                     invoice_payload=invoice_p)
+    try:
+        bot.send_invoice(message.chat.id,
+                         title=title,
+                         description=description,
+                         provider_token=payment_token,
+                         currency="rub",
+                         prices=[price],
+                         start_parameter=start_p,
+                         invoice_payload=invoice_p)
+    except Exception as ex:
+        print('Проблема с платёжкой')
+        print(ex)
 
 
 @bot.pre_checkout_query_handler(func=lambda query: True)

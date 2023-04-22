@@ -1,41 +1,31 @@
-import json
 import sqlite3
 import time
-
 import validators
 import json
 import threading
 import schedule
 import telebot
 from telebot import types
-from telebot.handler_backends import State, StatesGroup
 from telebot.storage import StateMemoryStorage
-from config import BOT_TOKEN, DATABASE_FILE
-from database.db import User_database, Hidden_continuation_database, Banned_users
+from database.db import User_database, Banned_users
 from datetime import datetime
 from pathlib import Path
 from tools.markups import Start_markup
 from tools.ban_message_parser import ban_message_parser
+from tools.my_states import MyStates
 
 with open('config.json', 'r', encoding='utf-8') as f:
     config = json.load(f)
-    BOT_TOKEN, ADMINS_ID, SUPPORT_CHAT, LIST_ID = config['BOT_TOKEN'], config['ADMINS_ID'], config['SUPPORT_CHAT'], config['LIST_ID']
+    BOT_TOKEN = config['BOT_TOKEN']
+    ADMINS_ID = config['ADMINS_ID']
+    SUPPORT_CHAT = config['SUPPORT_CHAT']
+    LIST_ID = config['LIST_ID']
 
 state_storage = StateMemoryStorage()
 bot = telebot.TeleBot(BOT_TOKEN, state_storage=state_storage)
 bot.delete_webhook()
 db = User_database(str(Path.cwd() / 'database' / 'database.db'))
-callback_database = Hidden_continuation_database(str(Path.cwd() / 'database' / 'database.db'))
 bans_database = Banned_users(str(Path.cwd() / 'database' / 'database.db'))
-
-
-class MyStates(StatesGroup):
-    neutral = State()
-    mailing_text = State()
-    adding_button = State()
-    button_text = State()
-    button_link = State()
-    final_approve = State()
 
 
 # Тут работаем с командой start
@@ -49,46 +39,33 @@ def welcome_start(message):
         print(ex)
 
 
-@bot.message_handler(content_types=['text'], func=lambda message: str(message.chat.id) != SUPPORT_CHAT and SUPPORT_CHAT != 'None')
-def forwarding_to_support_chat(message):
-    if not bans_database.check_user(message.from_user.id):
-        button = types.InlineKeyboardMarkup()
-        btn = types.InlineKeyboardButton('Скрыть', callback_data='unseen')
-        button.add(btn)
-        bot.forward_message(SUPPORT_CHAT, message.chat.id, message.message_id)
-        text = 'Ваш вопрос отправлен в чат поддержки, вскоре вы получите на него ответ.'
-        bot.send_message(message.chat.id, text, parse_mode='Markdown', reply_markup=button)
-    else:
-        button = types.InlineKeyboardMarkup()
-        btn = types.InlineKeyboardButton('Скрыть', callback_data='unseen')
-        button.add(btn)
-        info = bans_database.get_user_info(message.from_user.id)
-        text = 'Ваш вопрос не был отправлен в чат поддержки. Вам запрещено отправлять сообщения в чат поддержки до ' + datetime.fromtimestamp(info[0]).date().isoformat()
-        bot.send_message(message.chat.id, text, parse_mode='Markdown', reply_markup=button)
-
-
-@bot.message_handler(commands=['ban'], func=lambda message: str(message.chat.id) == SUPPORT_CHAT and SUPPORT_CHAT != 'None' and message.reply_to_message is not None)
+@bot.message_handler(commands=['ban'], func=lambda message: str(
+    message.chat.id) == SUPPORT_CHAT and SUPPORT_CHAT != 'None' and message.reply_to_message is not None)
 def ban(message):
     try:
         res = ban_message_parser(message.text)
         if bans_database.check_user(message.reply_to_message.forward_from.id):
             bans_database.upd_user_time(message.reply_to_message.forward_from.id, res['time'])
-            text = 'Длительность вашей блокировки изменена.\nНовое количество дней блокировки начиная с этого момента — ' + res['days']
+            with open('ban_write_update.txt', 'r', encoding='utf-8') as file:
+                text = file.read() + res['days']
             bot.send_message(message.reply_to_message.forward_from.id, text, parse_mode='Markdown')
         else:
-            bans_database.add_user(message.reply_to_message.forward_from.id, message.reply_to_message.forward_from.username, res['time'], res['reason'])
-            text = 'Ваша возможность писать в поддержку ограничена.\nКоличество дней блокировки начиная с этого момента — ' + \
-                   res['days'] + '.\nПричина: ' + str(res['reason'])
+            bans_database.add_user(message.reply_to_message.forward_from.id,
+                                   message.reply_to_message.forward_from.username, res['time'], res['reason'])
+            with open('ban_write.txt', 'r', encoding='utf-8') as file:
+                text = file.read() + res['days'] + '.\nПричина: ' + str(res['reason'])
             bot.send_message(message.reply_to_message.forward_from.id, text, parse_mode='Markdown')
         text = 'Ограничения произведены успешно.'
         bot.reply_to(message, text)
     except Exception as ex:
-        text = 'Произошла ошибка!\n' + str(ex) + '\nПрошу вас, используйте теги примерно так:\n[REASON::<причина бана>]\n[TIME::<количество дней бана>]'
+        with open('ban_tags_error.txt', 'r', encoding='utf-8') as file:
+            text = 'Произошла ошибка!\n' + str(ex) + file.read()
         bot.reply_to(message, text)
         print(str(ex))
 
 
-@bot.message_handler(commands=['cancel_ban'], func=lambda message: str(message.chat.id) == SUPPORT_CHAT and SUPPORT_CHAT != 'None' and message.reply_to_message is not None)
+@bot.message_handler(commands=['cancel_ban'], func=lambda message: str(
+    message.chat.id) == SUPPORT_CHAT and SUPPORT_CHAT != 'None' and message.reply_to_message is not None)
 def cancel_ban(message):
     try:
         if bans_database.check_user(message.reply_to_message.forward_from.id):
@@ -106,13 +83,19 @@ def cancel_ban(message):
         print(str(ex))
 
 
-@bot.message_handler(commands=['cancel_ban'], func=lambda message: str(message.chat.id) == SUPPORT_CHAT and SUPPORT_CHAT != 'None' and message.reply_to_message is None)
+@bot.message_handler(commands=['cancel_ban'], func=lambda message: str(
+    message.chat.id) == SUPPORT_CHAT and SUPPORT_CHAT != 'None' and message.reply_to_message is None)
 def cancel_ban_id(message):
     try:
         user_id = int(message.text.split()[-1])
-    except:
+    except ValueError:
         text = 'Id указано некорректно.'
         bot.reply_to(message, text)
+        return
+    except Exception as ex:
+        text = 'Произошла ошибка!\n' + str(ex)
+        bot.reply_to(message, text)
+        print(str(ex))
         return
     try:
         if bans_database.check_user(user_id):
@@ -130,13 +113,19 @@ def cancel_ban_id(message):
         print(str(ex))
 
 
-@bot.message_handler(commands=['ban_info'], func=lambda message: str(message.chat.id) == SUPPORT_CHAT and SUPPORT_CHAT != 'None')
+@bot.message_handler(commands=['ban_info'],
+                     func=lambda message: str(message.chat.id) == SUPPORT_CHAT and SUPPORT_CHAT != 'None')
 def user_info(message):
     try:
         user_id = int(message.text.split()[-1])
-    except:
+    except ValueError:
         text = 'Id указано некорректно.'
         bot.reply_to(message, text)
+        return
+    except Exception as ex:
+        text = 'Произошла ошибка!\n' + str(ex)
+        bot.reply_to(message, text)
+        print(str(ex))
         return
     try:
         if bans_database.check_user(user_id):
@@ -152,7 +141,8 @@ def user_info(message):
         print(str(ex))
 
 
-@bot.message_handler(commands=['ban_list'], func=lambda message: str(message.chat.id) == SUPPORT_CHAT and SUPPORT_CHAT != 'None')
+@bot.message_handler(commands=['ban_list'],
+                     func=lambda message: str(message.chat.id) == SUPPORT_CHAT and SUPPORT_CHAT != 'None')
 def ban_list(message):
     lst = bans_database.get_users()
     text = 'Список забаненных:\n'
@@ -160,43 +150,13 @@ def ban_list(message):
         text += '@' + i[0] + ': ' + str(i[1]) + '\n'
     bot.reply_to(message, text)
 
-@bot.message_handler(content_types=['text'], func=lambda message: str(message.chat.id) == SUPPORT_CHAT and SUPPORT_CHAT != 'None' and message.reply_to_message is not None)
+
+@bot.message_handler(content_types=['text'], func=lambda message: str(
+    message.chat.id) == SUPPORT_CHAT and SUPPORT_CHAT != 'None' and message.reply_to_message is not None)
 def answer(message):
     text = '> ' + message.reply_to_message.text + '\n\n' + message.text
     bot.send_message(message.reply_to_message.forward_from.id, text, parse_mode='Markdown')
 
-
-@bot.callback_query_handler(func=lambda call: True)
-def callback_inline(call):
-    try:
-        if call.data == 'start_markup_support_chat':
-            buttons = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
-            btn1 = types.KeyboardButton('Да')
-            btn2 = types.KeyboardButton('Нет')
-            buttons.add(btn1, btn2)
-            text = 'Хотите изменить чат поддержки?'
-            message = bot.send_message(call.from_user.id, text, parse_mode='Markdown', reply_markup=buttons)
-            bot.register_next_step_handler(message, approve_change_support_chat_id)
-        elif call.data == 'unseen':
-            bot.delete_message(call.message.chat.id, call.message.id)
-        elif callback_database.check_button(int(call.data)):
-            callback, sub_event, no_sub_event, condition = callback_database.get_button(int(call.data))
-            flag = True
-            if condition != 'None':
-                for i in condition.split(';'):
-                    try:
-                        if bot.get_chat_member(i, call.from_user.id).status == 'left':
-                            flag = False
-                    except:
-                        flag = False
-                        break
-            if flag:
-                bot.answer_callback_query(call.id, show_alert=True, text=sub_event)
-            else:
-                bot.answer_callback_query(call.id, show_alert=True, text=no_sub_event)
-    except Exception as ex:
-        print('Ops... callback error')
-        print(ex)
 
 def approve_change_support_chat_id(message):
     if message.text.lower() == 'да':
@@ -212,13 +172,13 @@ def approve_change_support_chat_id(message):
 
 
 def change_support_chat_id(message):
-    with open('config.json', 'r', encoding='utf-8') as f:
-        config = json.load(f)
+    with open('config.json', 'r', encoding='utf-8') as file:
+        config = json.load(file)
     config['SUPPORT_CHAT'] = message.text
     global SUPPORT_CHAT
     SUPPORT_CHAT = message.text
-    with open('config.json', 'w') as f:
-        f.write(json.dumps(config))
+    with open('config.json', 'w') as file:
+        file.write(json.dumps(config))
     text = 'Id чата поддержки изменено на ' + message.text
     bot.send_message(message.from_user.id, text, parse_mode='Markdown', disable_web_page_preview=True)
 
@@ -237,15 +197,17 @@ def invite(message):
                 db.add_user(message.from_user.id, datetime.now().timestamp(), 0)
             if db.check_user_status(message.from_user.id):
                 bot.approve_chat_join_request(message.chat.id, message.from_user.id)
-                with open(Path.cwd() / 'messages' / 'welcome_message.txt', 'r', encoding='utf-8') as f:
-                    bot.send_message(message.from_user.id, f.read(), parse_mode='Markdown', disable_web_page_preview=True)
+                with open(Path.cwd() / 'messages' / 'welcome_message.txt', 'r', encoding='utf-8') as file:
+                    bot.send_message(message.from_user.id, file.read(), parse_mode='Markdown',
+                                     disable_web_page_preview=True)
             else:
                 bot.decline_chat_join_request(message.chat.id, message.from_user.id)
-                with open(Path.cwd() / 'messages' / 'no_welcome_message.txt', 'r', encoding='utf-8') as f:
-                    bot.send_message(message.from_user.id, f.read(), parse_mode='Markdown', disable_web_page_preview=True)
+                with open(Path.cwd() / 'messages' / 'no_welcome_message.txt', 'r', encoding='utf-8') as file:
+                    bot.send_message(message.from_user.id, file.read(), parse_mode='Markdown',
+                                     disable_web_page_preview=True)
         else:
-            with open(Path.cwd() / 'messages' / 'already_member.txt', 'r', encoding='utf-8') as f:
-                bot.send_message(message.from_user.id, f.read(), parse_mode='Markdown', disable_web_page_preview=True)
+            with open(Path.cwd() / 'messages' / 'already_member.txt', 'r', encoding='utf-8') as file:
+                bot.send_message(message.from_user.id, file.read(), parse_mode='Markdown', disable_web_page_preview=True)
     except Exception as ex:
         print('Ops...\n', ex)
 
@@ -255,8 +217,9 @@ def invite(message):
 def start_mailing(message):
     if message.from_user.id in ADMINS_ID:
         text = bot.send_message(message.chat.id, 'Пришлите текст рассылки')
-        bot.register_next_step_handler(text, approve_mailing)
+        bot.register_next_step_handler(text, approve)
         bot.set_state(message.from_user.id, MyStates.mailing_text, message.chat.id)
+
 
 @bot.message_handler(state=MyStates.mailing_text)
 def approve(message):
@@ -360,8 +323,9 @@ def sendall(message, mail_text, btn_text, btn_link):
     except sqlite3.Error:
         bot.send_message(message.chat.id, 'Упс! Проблемы с соединением с базой данных',
                          reply_markup=removing_buttons)
-    except Exception:
+    except Exception as ex:
         bot.send_message(message.chat.id, 'Кажется, что-то пошло не так...', reply_markup=removing_buttons)
+        print('Ops...\n', ex)
 
 
 @bot.message_handler(commands=['payforsub'])
@@ -382,13 +346,13 @@ def pay(message):
 
     price = types.LabeledPrice(label=purchase_label, amount=sub_price * 100)
     bot.send_invoice(message.chat.id,
-                           title=title,
-                           description=description,
-                           provider_token=payment_token,
-                           currency="rub",
-                           prices=[price],
-                           start_parameter=start_p,
-                           invoice_payload=invoice_p)
+                     title=title,
+                     description=description,
+                     provider_token=payment_token,
+                     currency="rub",
+                     prices=[price],
+                     start_parameter=start_p,
+                     invoice_payload=invoice_p)
 
 
 @bot.pre_checkout_query_handler(func=lambda query: True)
@@ -399,6 +363,7 @@ def checkout(pre_checkout_query):
 
 @bot.message_handler(content_types=['successful_payment'])
 def successful_payment(message):
+    db.upd_user(message.from_user.id, db.check_user_datetime(message.from_user.id) + int(30 * 24 * 60 * 60), 1)
     bot.send_message(message.chat.id, f"Платёж прошел успешно! "
                                       f"Сумма оплаты составила {message.successful_payment.total_amount / 100}"
                                       f" {message.successful_payment.currency}")
@@ -406,33 +371,54 @@ def successful_payment(message):
 
 bot.add_custom_filter(telebot.custom_filters.StateFilter(bot))
 
+
+@bot.message_handler(content_types=['text'],
+                     func=lambda message: str(message.chat.id) != SUPPORT_CHAT and SUPPORT_CHAT != 'None')
+def forwarding_to_support_chat(message):
+    if not bans_database.check_user(message.from_user.id):
+        button = types.InlineKeyboardMarkup()
+        btn = types.InlineKeyboardButton('Скрыть', callback_data='unseen')
+        button.add(btn)
+        bot.forward_message(SUPPORT_CHAT, message.chat.id, message.message_id)
+        text = 'Ваш вопрос отправлен в чат поддержки, вскоре вы получите на него ответ.'
+        bot.send_message(message.chat.id, text, parse_mode='Markdown', reply_markup=button)
+    else:
+        button = types.InlineKeyboardMarkup()
+        btn = types.InlineKeyboardButton('Скрыть', callback_data='unseen')
+        button.add(btn)
+        info = bans_database.get_user_info(message.from_user.id)
+        with open(Path.cwd() / 'messages' / 'impossible_write.txt', 'r', encoding='utf-8') as file:
+            text = file.read() + datetime.fromtimestamp(info[0]).date().isoformat()
+        bot.send_message(message.chat.id, text, parse_mode='Markdown', reply_markup=button)
+
+
 def checking_subscription():
     current_date_time = datetime.now().timestamp()
     all_users = db.get_all()
     for i in all_users:
         if i[3]:
-            if current_date_time > i[2] - 300:  # конец подписки
+            if current_date_time > i[2]:  # конец подписки
                 try:
                     normal_kick(i[1])
                     db.upd_user_status(i[1], 0)
                 except Exception as ex:
                     print("Выгнать человека не удалось\n" + str(ex))
-                with open(Path.cwd() / 'messages' / 'end_subscription_message.txt', 'r', encoding='utf-8') as f:
-                    bot.send_message(LIST_ID, f.read(), parse_mode='Markdown',
+                with open(Path.cwd() / 'messages' / 'end_subscription_message.txt', 'r', encoding='utf-8') as file:
+                    bot.send_message(LIST_ID, file.read(), parse_mode='Markdown',
                                      disable_web_page_preview=True)
-            elif 604500 < i[2] - current_date_time < 605100:  # предупреждение за неделю
+            elif int(-1 * (i[2] / 86400) // 1 * -1) == 7:  # предупреждение за неделю
                 with open(Path.cwd() / 'messages' / 'week_until_end_subscription_message.txt', 'r',
-                          encoding='utf-8') as f:
-                    bot.send_message(LIST_ID, f.read(), parse_mode='Markdown',
+                          encoding='utf-8') as file:
+                    bot.send_message(LIST_ID, file.read(), parse_mode='Markdown',
                                      disable_web_page_preview=True)
-            elif 258900 < i[2] - current_date_time < 259500:  # предупреждение за три дня
+            elif int(-1 * (i[2] / 86400) // 1 * -1) == 3:  # предупреждение за три дня
                 with open(Path.cwd() / 'messages' / 'three_days_until_end_subscription.txt', 'r',
-                          encoding='utf-8') as f:
-                    bot.send_message(LIST_ID, f.read(), parse_mode='Markdown',
+                          encoding='utf-8') as file:
+                    bot.send_message(LIST_ID, file.read(), parse_mode='Markdown',
                                      disable_web_page_preview=True)
-            elif 86100 < i[2] - current_date_time < 86700:  # предупреждение за один день
-                with open(Path.cwd() / 'messages' / 'day_until_end_subscription.txt', 'r', encoding='utf-8') as f:
-                    bot.send_message(LIST_ID, f.read(), parse_mode='Markdown',
+            elif int(-1 * (i[2] / 86400) // 1 * -1) == 1:  # предупреждение за один день
+                with open(Path.cwd() / 'messages' / 'day_until_end_subscription.txt', 'r', encoding='utf-8') as file:
+                    bot.send_message(LIST_ID, file.read(), parse_mode='Markdown',
                                      disable_web_page_preview=True)
 
 
@@ -462,10 +448,10 @@ def normal_kick(user_id):
         pass
 
 
-
 def run_threaded(job_func):
     job_thread = threading.Thread(target=job_func)
     job_thread.start()
+
 
 def time_checker():
     trigger_time = "20:07"

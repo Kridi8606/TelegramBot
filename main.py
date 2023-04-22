@@ -367,6 +367,8 @@ def checkout(pre_checkout_query):
 
 @bot.message_handler(content_types=['successful_payment'])
 def successful_payment(message):
+    if not db.check_user(message.from_user.id):
+        db.add_user(message.from_user.id, datetime.now().timestamp(), 0)
     db.upd_user(message.from_user.id, db.check_user_datetime(message.from_user.id) + int(30 * 24 * 60 * 60), 1)
     bot.send_message(message.chat.id, f"Платёж прошел успешно! "
                                       f"Сумма оплаты составила {message.successful_payment.total_amount / 100}"

@@ -22,7 +22,7 @@ class User_database:
 
     def upd_user(self, user_id, datetime, status):
         with self.connection:
-            self.cursor.execute("""UPDATE `users` SET `datetime` = ?, `status` = ? WHERE `user_id` = ?""", (user_id, datetime, status))
+            self.cursor.execute("""UPDATE `users` SET `datetime` = ?, `status` = ? WHERE `user_id` = ?""", (datetime, status, user_id))
 
     def check_user_datetime(self, user_id):
         with self.connection:

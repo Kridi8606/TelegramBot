@@ -46,20 +46,23 @@ def ban(message):
         res = ban_message_parser(message.text)
         if bans_database.check_user(message.reply_to_message.forward_from.id):
             bans_database.upd_user_time(message.reply_to_message.forward_from.id, res['time'])
-            with open('ban_write_update.txt', 'r', encoding='utf-8') as file:
-                text = file.read() + res['days']
+            with open(Path.cwd() / 'messages' / 'ban_write_update.txt', 'r', encoding='utf-8') as file:
+                text = file.read()
+                text = text.replace('[[ days ]]', res['days'])
             bot.send_message(message.reply_to_message.forward_from.id, text, parse_mode='Markdown')
         else:
             bans_database.add_user(message.reply_to_message.forward_from.id,
                                    message.reply_to_message.forward_from.username, res['time'], res['reason'])
-            with open('ban_write.txt', 'r', encoding='utf-8') as file:
-                text = file.read() + res['days'] + '.\nПричина: ' + str(res['reason'])
+            with open(Path.cwd() / 'messages' / 'ban_write.txt', 'r', encoding='utf-8') as file:
+                text = file.read()
+                text = text.replace('[[ days ]]', res['days'])
+                text = text.replace('[[ reason ]]', str(res['reason']))
             bot.send_message(message.reply_to_message.forward_from.id, text, parse_mode='Markdown')
         text = 'Ограничения произведены успешно.'
         bot.reply_to(message, text)
     except Exception as ex:
-        with open('ban_tags_error.txt', 'r', encoding='utf-8') as file:
-            text = 'Произошла ошибка!\n' + str(ex) + file.read()
+        with open(Path.cwd() / 'messages' / 'ban_tags_error.txt', 'r', encoding='utf-8') as file:
+            text = 'Произошла ошибка!\n' + str(ex) + '\n' + file.read()
         bot.reply_to(message, text)
         print(str(ex))
 
@@ -154,6 +157,7 @@ def ban_list(message):
 @bot.message_handler(content_types=['text'], func=lambda message: str(
     message.chat.id) == SUPPORT_CHAT and SUPPORT_CHAT != 'None' and message.reply_to_message is not None)
 def answer(message):
+    print(message.chat.id)
     text = '> ' + message.reply_to_message.text + '\n\n' + message.text
     bot.send_message(message.reply_to_message.forward_from.id, text, parse_mode='Markdown')
 
@@ -231,12 +235,12 @@ def invite(message):
                 db.add_user(message.from_user.id, datetime.now().timestamp(), 0)
             if db.check_user_status(message.from_user.id):
                 bot.approve_chat_join_request(message.chat.id, message.from_user.id)
-                with open(Path.cwd() / 'messages' / 'welcome_message.txt', 'r', encoding='utf-8') as file:
+                with open(Path.cwd() / 'messages' / 'welcome.txt', 'r', encoding='utf-8') as file:
                     bot.send_message(message.from_user.id, file.read(), parse_mode='Markdown',
                                      disable_web_page_preview=True)
             else:
                 bot.decline_chat_join_request(message.chat.id, message.from_user.id)
-                with open(Path.cwd() / 'messages' / 'no_welcome_message.txt', 'r', encoding='utf-8') as file:
+                with open(Path.cwd() / 'messages' / 'no_welcome.txt', 'r', encoding='utf-8') as file:
                     bot.send_message(message.from_user.id, file.read(), parse_mode='Markdown',
                                      disable_web_page_preview=True)
         else:
@@ -248,7 +252,7 @@ def invite(message):
 
 
 # рассылка
-@bot.message_handler(commands=['startmailing'])
+@bot.message_handler(commands=['startmailing'], func=lambda message: str(message.chat.id) != SUPPORT_CHAT)
 def start_mailing(message):
     if message.from_user.id in ADMINS_ID:
         text = bot.send_message(message.chat.id, 'Пришлите текст рассылки')
@@ -429,7 +433,8 @@ def forwarding_to_support_chat(message):
         button.add(btn)
         info = bans_database.get_user_info(message.from_user.id)
         with open(Path.cwd() / 'messages' / 'impossible_write.txt', 'r', encoding='utf-8') as file:
-            text = file.read() + datetime.fromtimestamp(info[0]).date().isoformat()
+            text = file.read()
+            text = text.replace('[[ date ]]', datetime.fromtimestamp(info[0]).date().isoformat())
         bot.send_message(message.chat.id, text, parse_mode='Markdown', reply_markup=button)
 
 
@@ -444,11 +449,11 @@ def checking_subscription():
                     db.upd_user_status(i[1], 0)
                 except Exception as ex:
                     print("Выгнать человека не удалось\n" + str(ex))
-                with open(Path.cwd() / 'messages' / 'end_subscription_message.txt', 'r', encoding='utf-8') as file:
+                with open(Path.cwd() / 'messages' / 'end_subscription.txt', 'r', encoding='utf-8') as file:
                     bot.send_message(LIST_ID, file.read(), parse_mode='Markdown',
                                      disable_web_page_preview=True)
             elif int(-1 * (i[2] / 86400) // 1 * -1) == 7:  # предупреждение за неделю
-                with open(Path.cwd() / 'messages' / 'week_until_end_subscription_message.txt', 'r',
+                with open(Path.cwd() / 'messages' / 'week_until_end_subscription.txt', 'r',
                           encoding='utf-8') as file:
                     bot.send_message(LIST_ID, file.read(), parse_mode='Markdown',
                                      disable_web_page_preview=True)

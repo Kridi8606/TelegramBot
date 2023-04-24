@@ -158,6 +158,15 @@ def answer(message):
     bot.send_message(message.reply_to_message.forward_from.id, text, parse_mode='Markdown')
 
 
+@bot.message_handler(content_types=['sticker'], func=lambda message: str(
+    message.chat.id) == SUPPORT_CHAT and SUPPORT_CHAT != 'None' and message.reply_to_message is not None)
+def answer(message):
+    text = '> ' + message.reply_to_message.text
+    bot.send_message(message.reply_to_message.forward_from.id, text, parse_mode='Markdown')
+    sticker = message.sticker.file_id
+    bot.send_sticker(message.reply_to_message.forward_from.id, sticker)
+
+
 @bot.callback_query_handler(func=lambda call: True)
 def callback_inline(call):
     try:
@@ -232,7 +241,8 @@ def invite(message):
                                      disable_web_page_preview=True)
         else:
             with open(Path.cwd() / 'messages' / 'already_member.txt', 'r', encoding='utf-8') as file:
-                bot.send_message(message.from_user.id, file.read(), parse_mode='Markdown', disable_web_page_preview=True)
+                bot.send_message(message.from_user.id, file.read(), parse_mode='Markdown',
+                                 disable_web_page_preview=True)
     except Exception as ex:
         print('Ops...\n', ex)
 

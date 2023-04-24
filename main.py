@@ -158,6 +158,24 @@ def answer(message):
     bot.send_message(message.reply_to_message.forward_from.id, text, parse_mode='Markdown')
 
 
+@bot.callback_query_handler(func=lambda call: True)
+def callback_inline(call):
+    try:
+        if call.data == 'start_markup_support_chat':
+            buttons = types.ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+            btn1 = types.KeyboardButton('Да')
+            btn2 = types.KeyboardButton('Нет')
+            buttons.add(btn1, btn2)
+            text = 'Хотите изменить чат поддержки?'
+            message = bot.send_message(call.from_user.id, text, parse_mode='Markdown', reply_markup=buttons)
+            bot.register_next_step_handler(message, approve_change_support_chat_id)
+        elif call.data == 'unseen':
+            bot.delete_message(call.message.chat.id, call.message.id)
+    except Exception as ex:
+        print('Ops... callback error')
+        print(ex)
+
+
 def approve_change_support_chat_id(message):
     if message.text.lower() == 'да':
         text = 'Хорошо, отправьте id чата, который хотите использовать.'
@@ -172,15 +190,22 @@ def approve_change_support_chat_id(message):
 
 
 def change_support_chat_id(message):
-    with open('config.json', 'r', encoding='utf-8') as file:
-        config = json.load(file)
-    config['SUPPORT_CHAT'] = message.text
-    global SUPPORT_CHAT
-    SUPPORT_CHAT = message.text
-    with open('config.json', 'w') as file:
-        file.write(json.dumps(config))
-    text = 'Id чата поддержки изменено на ' + message.text
-    bot.send_message(message.from_user.id, text, parse_mode='Markdown', disable_web_page_preview=True)
+    try:
+        text = "Теперь это чат поддержки"
+        bot.send_message(message.text, text, parse_mode='Markdown', disable_web_page_preview=True)
+        with open('config.json', 'r', encoding='utf-8') as file:
+            config = json.load(file)
+        config['SUPPORT_CHAT'] = message.text
+        global SUPPORT_CHAT
+        SUPPORT_CHAT = message.text
+        with open('config.json', 'w') as file:
+            file.write(json.dumps(config, indent=4))
+        text = 'Id чата поддержки изменено на ' + message.text
+        bot.send_message(message.from_user.id, text, parse_mode='Markdown', disable_web_page_preview=True)
+    except Exception as ex:
+        text = 'Ошибка. Возможно вы не дали боту возможность писать в чате, который хотите сделать чатом поддержки.'
+        text += '\n\n' + str(ex)
+        bot.send_message(message.from_user.id, text, parse_mode='Markdown', disable_web_page_preview=True)
 
 
 @bot.chat_join_request_handler()
